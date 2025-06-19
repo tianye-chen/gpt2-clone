@@ -47,20 +47,29 @@ def calc_total_loss(model, loader, criterion, device):
 
     return total_loss / len(loader)
 
-def train(model, train_loader, val_loader, optimizer, criterion, device, n_epochs, tokenizer, eval_freq, early_stop=0):
+def train(model, train_loader, val_loader, optimizer, criterion, device, n_epochs, tokenizer, eval_freq, early_stop=0, use_deepspeed=False):
     train_losses, val_losses = [], []
     tokens_seen_at_step = []
     tokens_seen = 0
+    iters_without_improvement = 0
     step = 0
     
     for epoch in range(n_epochs):
         model.train()
         
         for input_batch, target_batch in train_loader:
-            optimizer.zero_grad()
+            if not use_deepspeed:
+                optimizer.zero_grad()
+                
             loss = calc_batch_loss(input_batch, target_batch, model, criterion, device)
-            loss.backward()
-            optimizer.step()
+            
+            if use_deepspeed:
+                model.backward(loss)
+                model.step()
+            else:
+                loss.backward()
+                optimizer.step()
+                
             tokens_seen += input_batch.numel()
             step += 1
             
@@ -69,11 +78,18 @@ def train(model, train_loader, val_loader, optimizer, criterion, device, n_epoch
                 train_loss = calc_total_loss(model, train_loader, criterion, device)
                 val_loss = calc_total_loss(model, val_loader, criterion, device)
                 
+                # Early stopping logic
                 if early_stop and len(val_losses) > early_stop:
-                    val_loss_avg = np.mean(val_losses[-early_stop:])
-                    if val_loss < val_loss_avg * 0.95:
-                        print(f'Early stop {epoch} - {step}')
-                        return train_losses, val_losses, tokens_seen_at_step
+                    val_loss_threshold = min(val_losses[-early_stop:]) * 0.98
+                    if val_loss > val_loss_threshold:
+                        iters_without_improvement += 1
+                        
+                        if iters_without_improvement >= early_stop:
+                            print(f'Early stop {epoch} - {step}')
+                            return train_losses, val_losses, tokens_seen_at_step
+                    else:
+                        iters_without_improvement = 0
+                    
                 
                 tokens_seen_at_step.append(tokens_seen)
                 train_losses.append(train_loss)

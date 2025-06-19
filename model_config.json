@@ -1,0 +1,38 @@
+{
+    "vocab_size": 50257,
+    "context_length": 1024,
+    "emb_dim": 1024,
+    "n_heads": 16,
+    "n_layers": 24,
+    "dropout_rate": 0.0,
+    "batch_size": 2,
+    "d_R": 16, 
+    "d_c": 256,
+    "qkv_bias": true,
+    "learning_rate": 0.00005,
+    "weight_decay": 0.1,
+    "deepspeed_config": {
+        "train_batch_size": 8,
+        "gradient_accumulation_steps": 4,
+        "fp16": {
+            "enabled": true
+        },
+        "zero_optimization": {
+            "stage": 2,
+            "allgather_partitions": true,
+            "allgather_bucket_size": 2e8,
+            "reduce_scatter": true,
+            "reduce_bucket_size": 2e8,
+            "overlap_comm": true
+        },
+        "optimizer": {
+            "type": "AdamW",
+            "params": {
+            "lr": 0.00005,
+            "betas": [0.9, 0.999],
+            "eps": 1e-8,
+            "weight_decay": 0.1
+            }
+        }
+    }
+}
